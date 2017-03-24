@@ -2,7 +2,7 @@
   "name": "esparta-selectize",
   "version": "1.0.0",
   "main" : [
-    "./dist/selectize.js"
+    "./src/selectize.js"
   ],
   "dependencies": {
     "selectize": ">=0.12.4"
