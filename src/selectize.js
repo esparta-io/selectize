@@ -4,10 +4,10 @@ angular.module('selectize', [])
         return {
             restrict: 'A',
             scope: {
-                selectizeInitialData: '=',
                 createFn: '&selectizeCreate',
                 selectedFn: '&selectizeOnSelect',
                 loadDataCallbackFn: '&selectizeLoadData',
+                selectizeModel: '=selectizeModel',
                 selectizeInitialData: '=selectizeInitialData',
                 selectizeInitialDataLoad: '=selectizeInitialDataLoad',
                 selectizeInitialDataLoadIndex: '=selectizeInitialDataLoadIndex',
@@ -22,57 +22,24 @@ angular.module('selectize', [])
             require: '?ngModel',
             link: function (scope, element, attrs, ngModel) {
 
-                var updateNgModel = function (value) {
-                    if (scope.selectize) {
-                        $timeout(function () {
-                            if (value === null || value === undefined || value === '') {
-                                scope.selectize.setValue(null);
-                                scope.selectize.clear();
-                                scope.selectize.unlock();
-                                if (value === '') {
-                                    ngModel.$modelValue = null;
-                                }
-                            } else {
-                                angular.forEach(scope.selectize.options, function ($opt) {
-                                    // aqui o codigo compara o labelField de cada opcao do selectize com o novo valor do ngModel
-                                    // se o ngModel for um objeto, compara com o labelField do ngModel, pois nao tem como comparar sem saber o labelField
-                                    // se for String ou primitivo, compara ele direto com o labelField que o selectize gera internamente
-                                    // o Selectize sempre gera o par id/label para todos os objetos, mesmo que voce passe um array só de primitivos
-                                    // TODO tratar com ngModel sendo um array
-                                    if (angular.isObject(value) && $opt[scope.selectize.settings.labelField] == value[scope.selectize.settings.labelField]) {
-                                        scope.selectize.setValue($opt[scope.selectize.settings.beizerField]);
-                                    } else if ($opt[scope.selectize.settings.labelField] == value) {
-                                        scope.selectize.setValue($opt[scope.selectize.settings.beizerField]);
-                                    } else if (angular.isNumber(value) && $opt["id"] == value) {
-                                        scope.selectize.setValue($opt[scope.selectize.settings.beizerField]);
-                                    }
-                                });
-                            }
-                        });
-                    }
-                };
-
-                // Se o ngModel for informado, faz o watch nele.
-                // Não tem problema nao informar o ngModel, Mas no começo essa directive foi feita sem ele
-                // com o tempo podemos migrar para usar sempre o ngModel
-                if (ngModel) {
-                    scope.$watch(function () {
-                        return ngModel.$modelValue;
-                    }, function (newValue) {
-                        updateNgModel(newValue);
-                    });
-                }
 
                 var pluginsAr = scope.$eval(attrs.selectizePlugins);
 
+                var id = 0;
+
                 scope.createNew = function (name, callback) {
 
-                    scope.createFn({name: name, callback: function (result) {
-                        if (scope.selectizeInitialData && scope.selectizeInitialData.indexOf(result) < 0) {
-                            scope.selectizeInitialData.push(result);
+                    scope.createFn({
+                        name: name, callback: function (result) {
+                            if (!result.id) {
+                                result.id = --id;
+                            }
+                            if (scope.selectizeInitialData && scope.selectizeInitialData.indexOf(result) < 0) {
+                                scope.selectizeInitialData.push(result);
+                            }
+                            callback(result);
                         }
-                        callback(result);
-                    }})
+                    })
                 };
 
                 scope.loadMore = function (query, callback) {
@@ -80,20 +47,42 @@ angular.module('selectize', [])
                 };
 
                 scope.onChange = function (id) {
+
+                    if (!scope.completed) {
+                        return;
+                    }
                     scope.error = id === '';
 
-                    var $value = undefined;
-                    angular.forEach(scope.selectizeInitialData, function ($item) {
-                        if ($item.id == id) {
-                            $value = $item;
-                        }
-                    });
+                    if (!opts.maxItems || !opts.maxItems > 1) {
+                        var array = id.split(',');
 
-                    scope.selectedFn({id: id, model: $value});
+                        var $values = [];
+
+                        angular.forEach(array, function ($arrItem) {
+                            angular.forEach(scope.selectizeInitialData, function ($item) {
+                                if ($item && $item.id == $arrItem) {
+                                    $values.push($item);
+                                }
+                            });
+                        });
+
+                        scope.selectedFn({id: array, model: $values});
+                    } else {
+                        var $value = undefined;
+
+                        angular.forEach(scope.selectizeInitialData, function ($item) {
+                            if ($item && $item.id == id) {
+                                $value = $item;
+                            }
+                        });
+
+                        scope.selectedFn({id: id, model: $value});
+                    }
 
                     if (!$rootScope.$$phase) {
                         $rootScope.$apply();
                     }
+
                 };
 
                 scope.renderFn = function (item, escape) {
@@ -105,10 +94,11 @@ angular.module('selectize', [])
                         if (typeof labelType === 'undefined') {
                             labelType = 'add.new';
                         }
-                        return '<div class="create">' + 'Adicionar ' + ' <strong>' + escape(data.input) + '</strong>&hellip;</div>';
+                        if (labelType != 'disable') {
+                            return '<div class="create">' + 'Adicionar ' + ' <strong>' + escape(data.input) + '</strong>&hellip;</div>';
+                        }
                     }
                 };
-
 
                 var options = {
                     valueField: 'id',
@@ -125,7 +115,6 @@ angular.module('selectize', [])
                         option_create: generateLabelFunction(scope.labelType)
                     },
                     onInitialize: scope.onInit
-
                 };
 
                 var opts = angular.extend(options, scope.$eval(attrs.selectize));
@@ -298,11 +287,9 @@ angular.module('selectize', [])
                     /** @namespace attrs.cleanEmpty */
                     if (angular.isDefined(attrs.cleanEmpty) && angular.isDefined(scope.selectize)) {
                         var selected = scope.selectize.items;
-                        console.log(selected);
                         var opts = scope.selectize.options;
                         scope.selectize.clearOptions();
                         angular.forEach(opts, function ($value) {
-                            console.log($value);
                             if ($value.id.indexOf('? ') < 0) {
                                 scope.selectize.addOption($value);
                             }
@@ -311,8 +298,13 @@ angular.module('selectize', [])
                     }
 
                     if (angular.isDefined(scope.selectize) && angular.isDefined(scope.selectizeInitialData) && scope.selectizeInitialData.length > 0 && angular.isDefined(scope.selectizeInitialData[0])) {
-                        scope.selectize.addOption(scope.selectizeInitialData);
 
+                        angular.forEach(scope.selectizeInitialData, function ($item) {
+                            if ($item) {
+                                scope.selectize.addOption($item);
+                            }
+
+                        });
                         $selectizeInitialDataWatcher();
                         if (scope.selectizeInitialDataLoad) {
                             if (angular.isDefined(scope.selectizeInitialDataLoadIndex)) {
@@ -323,14 +315,21 @@ angular.module('selectize', [])
                                             scope.selectize.addItem($item[scope.selectize.settings.beizerField]);
                                         }
                                     });
+                                    scope.completed = true;
                                 } else {
-                                    scope.selectize.setValue(scope.selectizeInitialData[scope.selectizeInitialDataLoadIndex][scope.selectize.settings.beizerField]);
+                                    if (scope.selectizeInitialData[scope.selectizeInitialDataLoadIndex] !== undefined) {
+                                        scope.selectize.setValue(scope.selectizeInitialData[scope.selectizeInitialDataLoadIndex][scope.selectize.settings.beizerField]);
+                                    }
                                 }
                             } else {
                                 scope.selectize.setValue(scope.selectizeInitialData[0][scope.selectize.settings.beizerField]);
                             }
+
+                        } else {
+                            scope.completed = true;
                         }
                     }
+
                 };
 
                 var toggleEnabled = function () {
@@ -372,8 +371,10 @@ angular.module('selectize', [])
                             scope.selectizeOnInitialize(scope.selectize);
                         }
                     }
+
                     updateSelectizeValues();
                     toggleEnabled();
+
                 };
 
                 scope.fieldName = attrs.fieldName || 'name';
