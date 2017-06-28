@@ -1,6 +1,6 @@
 {
   "name": "esparta-selectize",
   "description": "This is an Angular.js directive for Brian Reavis's selectize jQuery plugin.",
-  "version": "v1.0.0",
+  "version": "v1.0.1",
   "private": false
 }
