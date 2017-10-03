@@ -15,6 +15,7 @@ angular.module('selectize', [])
                 selectizeRender: '&selectizeRender',
                 selectizeOnInitialize: '=selectizeOnInitialize',
                 selectizeOnClick: '=selectizeOnClick',
+                selectizeScore: '=selectizeScore',
                 labelType: '@selectizeLabelType',
                 error: '=?',
                 show: '=?'
@@ -116,6 +117,10 @@ angular.module('selectize', [])
                     },
                     onInitialize: scope.onInit
                 };
+
+                if (scope.selectizeScore) {
+                  options.score = scope.selectizeScore;
+                }
 
                 var opts = angular.extend(options, scope.$eval(attrs.selectize));
 
